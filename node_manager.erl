@@ -14,18 +14,18 @@ new(Nodes) ->
   receive Pid -> Pid end.
 
 monitor(Nodes) when is_list(Nodes) ->
-  clusterccd:prefixed("start nodes monitor"),
+  common_io:prefixed("start nodes monitor"),
   process_flag(trap_exit, true),
   Pid = spawn_link(fun() -> nodes_RR(Nodes) end),
   true = register(clusterccd_nodes_pool, Pid),
-  clusterccd:prefixed("start nodes pool: ~w", [Pid]),
+  common_io:prefixed("start nodes pool: ~w", [Pid]),
   receive
     {manage, Caller, act} -> Caller ! Pid
   end,
   receive
     {'EXIT', _, Why} -> Why
   end,
-  clusterccd:prefixed("terminate nodes monitor"),
+  common_io:prefixed("terminate nodes monitor"),
   exit(Why).
 
 manage(Function, Arg) when is_atom(Function) ->
@@ -42,9 +42,9 @@ nodes_RR([]) ->
 
     {manage, enter, Node} ->
       Next = [Node],
-      clusterccd:prefixed("enter new node: ~w", Next);
+      common_io:prefixed("enter new node: ~w", Next);
     {manage, leave, _} ->
-      clusterccd:prefixed("cannot leave node"),
+      common_io:prefixed("cannot leave node"),
       Next = []
   end,
   nodes_RR(Next);
@@ -56,10 +56,10 @@ nodes_RR(L = [H | T]) ->
       Next = reverse([H | reverse(T)]);
 
     {manage, enter, Node} ->
-      clusterccd:prefixed("enter new node: ~w", [Node]),
+      common_io:prefixed("enter new node: ~w", [Node]),
       Next = [Node | L];
     {manage, leave, Node} ->
-      clusterccd:prefixed("leave node: ~w", [Node]),
+      common_io:prefixed("leave node: ~w", [Node]),
       Next = lists:delete(Node, L)
   end,
   nodes_RR(Next).
