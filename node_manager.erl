@@ -9,7 +9,8 @@ get() ->
       {clusterccd_nodes_pool, _, V} -> V
     end
   catch
-    throw:_ -> undefined
+    % no such registered name or pid
+    error:badarg -> undefined
   end.
 
 new(Nodes, Spawn) when is_list(Nodes) ->
@@ -55,7 +56,7 @@ manage(Function, Arg) when is_atom(Function) ->
   try clusterccd_nodes_pool ! {manage, Function, Arg} of
     {manage, Function, Arg} -> true
   catch
-    throw:_ -> false
+    error:badarg -> false
   end.
 
 enter(Node) -> manage(enter, Node).
