@@ -8,25 +8,12 @@ get() ->
     {clusterccd_nodes_pool, _, V} -> V
   end.
 
-new(Nodes) ->
-  Monitor = spawn_link(fun() -> monitor(Nodes) end),
-  Monitor ! {manage, self(), act},
-  receive Pid -> Pid end.
 
-monitor(Nodes) when is_list(Nodes) ->
-  common_io:prefixed("start nodes monitor"),
-  process_flag(trap_exit, true),
-  Pid = spawn_link(fun() -> nodes_RR(Nodes) end),
+new(Nodes) when is_list(Nodes) ->
+  Pid = spawn(fun() -> nodes_RR(Nodes) end),
   true = register(clusterccd_nodes_pool, Pid),
   common_io:prefixed("start nodes pool: ~w", [Pid]),
-  receive
-    {manage, Caller, act} -> Caller ! Pid
-  end,
-  receive
-    {'EXIT', _, Why} -> Why
-  end,
-  common_io:prefixed("terminate nodes monitor"),
-  exit(Why).
+  Pid.
 
 manage(Function, Arg) when is_atom(Function) ->
   clusterccd_nodes_pool ! {manage, Function, Arg}.
