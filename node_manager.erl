@@ -1,5 +1,5 @@
 -module(node_manager).
--export([get/0, new/1, enter/1, leave/1]).
+-export([get/0, new/1, new_link/1, enter/1, leave/1]).
 -import(lists, [reverse/1]).
 
 get() ->
@@ -12,22 +12,14 @@ get() ->
     throw:_ -> undefined
   end.
 
-
-new(Nodes) when is_list(Nodes) ->
-  Pid = spawn(fun() -> nodes_RR(Nodes) end),
+new(Nodes, Spawn) when is_list(Nodes) ->
+  Pid = Spawn(fun() -> nodes_RR(Nodes) end),
   true = register(clusterccd_nodes_pool, Pid),
   common_io:prefixed("start nodes pool: ~w", [Pid]),
   Pid.
 
-manage(Function, Arg) when is_atom(Function) ->
-  try clusterccd_nodes_pool ! {manage, Function, Arg} of
-    {manage, Function, Arg} -> true
-  catch
-    throw:_ -> false
-  end.
-
-enter(Node) -> manage(enter, Node).
-leave(Node) -> manage(leave, Node).
+new(Nodes) -> new(Nodes, fun spawn/1).
+new_link(Nodes) -> new(Nodes, fun spawn_link/1).
 
 nodes_RR([]) ->
   receive
@@ -58,3 +50,13 @@ nodes_RR(L = [H | T]) ->
       Next = lists:delete(Node, L)
   end,
   nodes_RR(Next).
+
+manage(Function, Arg) when is_atom(Function) ->
+  try clusterccd_nodes_pool ! {manage, Function, Arg} of
+    {manage, Function, Arg} -> true
+  catch
+    throw:_ -> false
+  end.
+
+enter(Node) -> manage(enter, Node).
+leave(Node) -> manage(leave, Node).
