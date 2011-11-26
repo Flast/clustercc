@@ -3,9 +3,13 @@
 -import(lists, [reverse/1]).
 
 get() ->
-  clusterccd_nodes_pool ! {self(), get},
-  receive
-    {clusterccd_nodes_pool, _, V} -> V
+  try
+    clusterccd_nodes_pool ! {self(), get},
+    receive
+      {clusterccd_nodes_pool, _, V} -> V
+    end
+  catch
+    throw:_ -> undefined
   end.
 
 
@@ -16,7 +20,11 @@ new(Nodes) when is_list(Nodes) ->
   Pid.
 
 manage(Function, Arg) when is_atom(Function) ->
-  clusterccd_nodes_pool ! {manage, Function, Arg}.
+  try clusterccd_nodes_pool ! {manage, Function, Arg} of
+    {manage, Function, Arg} -> true
+  catch
+    throw:_ -> false
+  end.
 
 enter(Node) -> manage(enter, Node).
 leave(Node) -> manage(leave, Node).
