@@ -1,5 +1,5 @@
 -module(node_manager).
--export([get/0, new/1, new_link/1, enter/1, leave/1]).
+-export([get/0, new/1, new_link/1]).
 
 get() ->
   try
@@ -53,16 +53,10 @@ nodes_RR(L) when is_list(L) ->
     {Pid, get} -> nodes_get(Pid, L);
 
     {manage, enter, Node} -> nodes_enter(Node, L);
-    {manage, leave, Node} -> nodes_leave(Node, L)
+    {manage, leave, Node} -> nodes_leave(Node, L);
+
+    {manage, terminate} ->
+      common_io:prefixed("terminate node manager"),
+      exit(normal)
   end,
   nodes_RR(Next).
-
-manage(Function, Arg) when is_atom(Function) ->
-  try clusterccd_nodes_pool ! {manage, Function, Arg} of
-    {manage, Function, Arg} -> true
-  catch
-    error:badarg -> false
-  end.
-
-enter(Node) -> manage(enter, Node).
-leave(Node) -> manage(leave, Node).

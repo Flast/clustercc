@@ -4,6 +4,7 @@ ERL=erl -boot start_clean
 RM=rm -rf
 
 MODS=common_io \
+	 ccc_manage \
 	 node_manager
 BEAMS=$(MODS:%=%.beam)
 
