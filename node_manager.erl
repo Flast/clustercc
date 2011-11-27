@@ -3,9 +3,9 @@
 
 get() ->
   try
-    clusterccd_nodes_pool ! {self(), get},
+    global:send(nodes_pool, {self(), get}),
     receive
-      {clusterccd_nodes_pool, _, V} -> V
+      {nodes_pool, _, V} -> V
     end
   catch
     % no such registered name or pid
@@ -14,7 +14,7 @@ get() ->
 
 new(Nodes, Spawn) when is_list(Nodes) ->
   Pid = Spawn(fun() -> nodes_RR(Nodes) end),
-  true = register(clusterccd_nodes_pool, Pid),
+  yes = global:register_name(nodes_pool, Pid),
   common_io:prefixed("start nodes pool: ~w", [Pid]),
   Pid.
 
@@ -22,10 +22,10 @@ new(Nodes) -> new(Nodes, fun spawn/1).
 new_link(Nodes) -> new(Nodes, fun spawn_link/1).
 
 nodes_get(Pid, [H | T]) ->
-  Pid ! {clusterccd_nodes_pool, self(), H},
+  Pid ! {nodes_pool, self(), H},
   lists:reverse([H | lists:reverse(T)]);
 nodes_get(Pid, []) ->
-  Pid ! {clusterccd_nodes_pool, self(), undefined},
+  Pid ! {nodes_pool, self(), undefined},
   [].
 
 nodes_enter(Node, L) ->
@@ -52,11 +52,11 @@ nodes_RR(L) when is_list(L) ->
   Next = receive
     {Pid, get} -> nodes_get(Pid, L);
 
-    {manage, enter, Node} -> nodes_enter(Node, L);
-    {manage, leave, Node} -> nodes_leave(Node, L);
+    {manage, _, enter, Node} -> nodes_enter(Node, L);
+    {manage, _, leave, Node} -> nodes_leave(Node, L);
 
-    {manage, terminate} ->
-      common_io:prefixed("terminate node manager"),
+    {manage, Pid, terminate} ->
+      common_io:prefixed("terminate node manager: signaled by [~w]", [Pid]),
       exit(normal)
   end,
   nodes_RR(Next).

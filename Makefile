@@ -5,7 +5,8 @@ RM=rm -rf
 
 MODS=common_io \
 	 ccc_manage \
-	 node_manager
+	 node_manager \
+	 clusterccd
 BEAMS=$(MODS:%=%.beam)
 
 .PHONY: all compile clean
