@@ -14,20 +14,22 @@ trap_exit_RAII(Function) ->
   true = process_flag(trap_exit, Prev),
   R.
 
+
+manage(To, Arg = [F | A]) when is_atom(F), is_list(A) ->
+  Self = self(),
+  M = list_to_tuple([manage, Self | Arg]),
+  try global:send(To, M) of
+    _ -> true
+  catch
+    exit:{badarg, {To, M}} -> false
+  end.
+
 stop() ->
   F = fun() ->
     common_io:prefixed("send terminate signal"),
-    global:send(clusterccd, {manage, self(), terminate})
+    manage(clusterccd, [terminate])
     end,
   trap_exit_RAII(F).
 
-manage(Function, Arg) when is_atom(Function) ->
-  Self = self(),
-  try global:send(nodes_pool, {manage, Self, Function, Arg}) of
-    _ -> true
-  catch
-    exit:{badarg, {nodes_pool, {manage, Self, Function, Arg}}} -> false
-  end.
-
-enter(Node) -> manage(enter, Node).
-leave(Node) -> manage(leave, Node).
+enter(Node) -> manage(nodes_pool, [enter, Node]).
+leave(Node) -> manage(nodes_pool, [leave, Node]).
