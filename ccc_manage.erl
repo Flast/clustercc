@@ -9,9 +9,9 @@ connect(Node) ->
   not lists:member(undefined, Pids).
 
 trap_exit_RAII(Function) ->
-  process_flag(trap_exit, true),
+  Prev = process_flag(trap_exit, true),
   Function(),
-  process_flag(trap_exit, false).
+  true = process_flag(trap_exit, Prev).
 
 stop() ->
   F = fun() ->
