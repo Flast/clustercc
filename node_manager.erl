@@ -2,14 +2,15 @@
 -export([get/0, new/1, new_link/1]).
 
 get() ->
+  Self = self(),
   try
-    global:send(nodes_pool, {self(), get}),
+    global:send(nodes_pool, {Self, get}),
     receive
       {nodes_pool, _, V} -> V
     end
   catch
     % no such registered name or pid
-    error:badarg -> undefined
+    exit:{badarg, {nodes_pool, {Self, get}}} -> undefined
   end.
 
 new(Nodes, Spawn) when is_list(Nodes) ->

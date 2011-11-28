@@ -10,8 +10,9 @@ connect(Node) ->
 
 trap_exit_RAII(Function) ->
   Prev = process_flag(trap_exit, true),
-  Function(),
-  true = process_flag(trap_exit, Prev).
+  R    = Function(),
+  true = process_flag(trap_exit, Prev),
+  R.
 
 stop() ->
   F = fun() ->
@@ -23,9 +24,9 @@ stop() ->
 manage(Function, Arg) when is_atom(Function) ->
   Self = self(),
   try global:send(nodes_pool, {manage, Self, Function, Arg}) of
-    {manage, Self, Function, Arg} -> true
+    _ -> true
   catch
-    error:badarg -> false
+    exit:{badarg, {nodes_pool, {manage, Self, Function, Arg}}} -> false
   end.
 
 enter(Node) -> manage(enter, Node).
