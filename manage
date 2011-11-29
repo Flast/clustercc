@@ -1,0 +1,4 @@
+#!/bin/sh
+SERVER=$1
+shift 1
+erl -sname manage -cookie clustercc -s manage main $SERVER -extra "$*"

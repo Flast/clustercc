@@ -1,0 +1,2 @@
+#!/bin/sh
+erl -noshell -sname daemon -cookie clustercc -s clusterccd main -s init stop -extra "$*"
