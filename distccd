@@ -1,0 +1,2 @@
+#!/bin/sh
+erl -noshell -sname distccd -cookie clustercc -s distccd main $USER -s init stop -extra "$*"
