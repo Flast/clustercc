@@ -1,13 +1,16 @@
 -module(ccc_manage).
--export([connect/1, stop/0, enter/1, leave/1]).
+-export([connect/1, connect/2, stop/0, enter/1, leave/1]).
 
 connect(Node) ->
-  pong  = net_adm:ping(Node),
-  ok    = global:sync(),
-  Regs  = [clusterccd, nodes_pool],
-  Pids  = [global:whereis_name(Reg) || Reg <- Regs],
-  false = lists:member(undefined, Pids),
-  M = {manage, self(), join},
+  pong = net_adm:ping(Node),
+  ok   = global:sync(),
+  Regs = [clusterccd, nodes_pool],
+  Pids = [global:whereis_name(Reg) || Reg <- Regs],
+  true = not lists:member(undefined, Pids).
+
+connect(manage, Node) ->
+  true = connect(Node),
+  M    = {manage, self(), join},
   try global:send(clusterccd, M) of
     _ -> true
   catch
