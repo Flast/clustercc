@@ -2,18 +2,23 @@
 -export([connect/1, stop/0, enter/1, leave/1]).
 
 connect(Node) ->
-  pong = net_adm:ping(Node),
-  ok   = global:sync(),
-  Regs = [clusterccd, nodes_pool],
-  Pids = [global:whereis_name(Reg) || Reg <- Regs],
-  not lists:member(undefined, Pids).
+  pong  = net_adm:ping(Node),
+  ok    = global:sync(),
+  Regs  = [clusterccd, nodes_pool],
+  Pids  = [global:whereis_name(Reg) || Reg <- Regs],
+  false = lists:member(undefined, Pids),
+  M = {manage, self(), join},
+  try global:send(clusterccd, M) of
+    _ -> true
+  catch
+    exit:{badarg, {clusterccd, M}} -> false
+  end.
 
 trap_exit_RAII(Function) ->
   Prev = process_flag(trap_exit, true),
   R    = Function(),
   true = process_flag(trap_exit, Prev),
   R.
-
 
 manage(To, Arg = [F | A]) when is_atom(F), is_list(A) ->
   Self = self(),

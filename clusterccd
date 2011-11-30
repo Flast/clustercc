@@ -1,2 +1,4 @@
 #!/bin/sh
-erl -noshell -sname daemon -cookie clustercc -s clusterccd main -s init stop -extra "$*"
+NODENAME=$1
+shift 1
+erl -noshell -name $NODENAME -cookie clustercc -s clusterccd main -s init stop -extra "$*"

@@ -6,6 +6,7 @@ RM=rm -rf
 MODS=common_io \
 	 ccc_manage \
 	 node_manager \
+	 manage \
 	 clusterccd
 BEAMS=$(MODS:%=%.beam)
 
