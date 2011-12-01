@@ -15,41 +15,44 @@ main([User]) when is_atom(User) ->
   true = register(distccd, self()),
   process_flag(trap_exit, true),
 
-  In = spawn_link(fun() -> buffer([]) end),
-  spawn_link(fun() -> receiver(standard_io, In) end),
+  case Node = node_manager:get() of
+    undefined -> exit(enoent);
+    _         -> undefined
+  end,
+  {ok, Socket} = gen_tcp:connect(Node, 3632, []),
 
-  %Out = spawn_link(fun() -> buffer([]) end),
-  %spawn_link(fun() -> receiver(socket, Out) end),
-
-  spawn_link(fun() -> redirecting(In, standard_io) end),
+  TX = spawn_link(
+    fun() -> redirecting(
+          fun() -> file:read(standard_io, 1) end,
+          fun(Data) -> gen_tcp:send(Socket, Data) end)
+    end),
+  RX = spawn_link(
+    fun() -> redirecting(
+          fun() -> gen_tcp:recv(Socket, 0) end,
+          fun(Data) -> io:format(standard_io, "~w", [Data]) end)
+    end),
 
   erlang:yield(),
+  loop(TX, RX),
+  gen_tcp:close(Socket).
+
+loop(undefined, undefined) -> undefined;
+loop(TX, RX) ->
   receive
-    {buffer, eof, Pid} ->
-      io:format("~n~n~w encountered EOF: system will down~n", [Pid])
+    {'EXIT', TX, Reason} ->
+      io:format("TX: ~w~n", [Reason]),
+      loop(undefined, RX);
+    {'EXIT', RX, Reason} ->
+      io:format("RX: ~w~n", [Reason]),
+      loop(TX, undefined)
   end.
 
-redirecting(Buffer, IoDevice) when is_pid(Buffer) ->
-  Buffer ! {buffer, read, self()},
-  receive
-    {buffer, Data} -> io:format("~s", [lists:reverse(Data)])
+redirecting(Receiver, Sender) ->
+  case Receiver() of
+    {ok, Data}      -> ok = Sender(Data);
+    eof             -> exit(normal);
+    {error, Reason} ->
+      io:format("~s~n", [file:format_error(Reason)]),
+      exit(Reason)
   end,
-  redirecting(Buffer, IoDevice).
-
-buffer(Data) ->
-  receive
-    {buffer, append, Char} ->
-      buffer([Char | Data]);
-    {buffer, read, Pid} when length(Data) /= 0 ->
-      Pid ! {buffer, Data},
-      buffer([])
-  end.
-
-receiver(IoDevice, BPid) ->
-  case file:read(IoDevice, 1) of
-    {ok, [Term]} ->
-      BPid ! {buffer, append, Term},
-      receiver(IoDevice, BPid);
-    eof -> distccd ! {buffer, eof, self()};
-    {error, Reason} -> exit(Reason)
-  end.
+  redirecting(Receiver, Sender).
