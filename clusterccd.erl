@@ -15,14 +15,9 @@ main() ->
   common_io:prefixed("terminate").
 
 hostname_validation() ->
-  case
-    case node() of
-      nonode@nohost -> false;
-      _             -> true
-    end
-  of
-    true  -> true;
-    false -> common_io:prefixed("hostname validation failed")
+  case node() of
+    nonode@nohost -> common_io:prefixed("hostname validation failed");
+    _             -> true
   end.
 
 loop(Manager) when is_pid(Manager) ->
