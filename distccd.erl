@@ -12,7 +12,6 @@ main([User]) when is_atom(User) ->
   end,
 
   true = ccc_manage:connect(daemon@localhost),
-  true = register(distccd, self()),
   process_flag(trap_exit, true),
 
   case Node = node_manager:get() of

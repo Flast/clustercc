@@ -1,4 +1,2 @@
 #!/bin/sh
-NODENAME=$1
-shift 1
-erl -noshell -name $NODENAME -cookie clustercc -s clusterccd main -s init stop -extra "$*"
+erl -noshell -sname daemon@localhost -setcookie clustercc -s clusterccd main -s init stop -extra "$@"
