@@ -1,2 +1,3 @@
 #!/bin/sh
-erl -noshell -sname distccd@localhost -setcookie clustercc -s distccd main $USER -s init stop -extra "$@"
+RANDNODENAME=`uuidgen | tr -d '-'`
+erl -noshell -sname $RANDNODENAME@localhost -setcookie clustercc -s distccd main $USER -s init stop -extra "$@"
