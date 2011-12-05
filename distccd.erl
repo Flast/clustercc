@@ -29,7 +29,7 @@ main([User]) when is_atom(User) ->
   RX = spawn_link(
     fun() -> redirecting(
           fun()     -> gen_tcp:recv(Socket, 0) end,
-          fun(Data) -> io:format(standard_io, "~w", [Data]) end)
+          fun(Data) -> io:format("~s", [Data]) end)
     end),
 
   erlang:yield(),
@@ -40,13 +40,13 @@ loop(undefined, undefined) -> undefined;
 loop(TX, RX) ->
   receive
     {'EXIT', TX, {Reason, RS}} ->
-      io:format("TX: ~w(~s)~n", [Reason, RS]),
+      io:format(standard_error, "TX: ~w(~s)~n", [Reason, RS]),
       loop(undefined, RX);
     {'EXIT', RX, {Reason, RS}} ->
-      io:format("RX: ~w(~s)~n", [Reason, RS]),
+      io:format(standard_error, "RX: ~w(~s)~n", [Reason, RS]),
       loop(TX, undefined);
     {'EXIT', Pid, Why} ->
-      io:format("unexpected process termination (~w): ~w~n", [Pid, Why]),
+      io:format(standard_error, "unexpected process termination (~w): ~w~n", [Pid, Why]),
       loop(TX, RX)
   end.
 
