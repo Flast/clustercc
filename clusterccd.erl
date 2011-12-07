@@ -29,6 +29,10 @@ loop(Manager) when is_pid(Manager) ->
       common_io:prefixed("process (~w) was terminated: ~w", [Pid, Why]),
       loop(Manager);
 
+    {node, Pid, join} ->
+      common_io:prefixed("joining distcc node: ~w", [Pid]),
+      loop(Manager);
+
     {manage, Pid, join} ->
       common_io:prefixed("joining management process: ~w", [Pid]),
       loop(Manager);

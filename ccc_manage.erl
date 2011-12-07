@@ -1,21 +1,22 @@
 -module(ccc_manage).
 -export([connect/1, connect/2, stop/0, enter/1, leave/1]).
 
-connect(Node) ->
+connect_impl(Type, Node) ->
   pong = net_adm:ping(Node),
   ok   = global:sync(),
   Regs = [clusterccd, nodes_pool],
   Pids = [global:whereis_name(Reg) || Reg <- Regs],
-  true = not lists:member(undefined, Pids).
+  true = not lists:member(undefined, Pids),
 
-connect(manage, Node) ->
-  true = connect(Node),
-  M    = {manage, self(), join},
+  M    = {Type, self(), join},
   try global:send(clusterccd, M) of
     _ -> true
   catch
     exit:{badarg, {clusterccd, M}} -> false
   end.
+
+connect(Node) -> connect_impl(node, Node).
+connect(manage, Node) -> connect_impl(manage, Node).
 
 trap_exit_RAII(Function) ->
   Prev = process_flag(trap_exit, true),
