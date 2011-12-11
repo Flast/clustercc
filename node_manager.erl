@@ -1,6 +1,12 @@
 -module(node_manager).
 -export([get/0, new/1, new_link/1]).
 
+prefixed(Format) -> prefixed(Format, []).
+prefixed(Format, Data) when length(Format) /= 0 ->
+  F = lists:concat(["node manager[~w]: ", Format, "~n"]),
+  D = [self() | Data],
+  io:format(F, D).
+
 get() ->
   Self = self(),
   try
@@ -16,7 +22,7 @@ get() ->
 new(Nodes, Spawn) when is_list(Nodes) ->
   Pid = Spawn(fun() -> nodes_RR(Nodes) end),
   yes = global:register_name(nodes_pool, Pid),
-  common_io:prefixed("start nodes pool: ~w", [Pid]),
+  prefixed("start nodes pool: ~w", [Pid]),
   Pid.
 
 new(Nodes) -> new(Nodes, fun spawn/1).
@@ -32,20 +38,20 @@ nodes_get(Pid, []) ->
 nodes_enter(Node, L) ->
   case lists:member(Node, L) of
     true ->
-      common_io:prefixed("such node already entered"),
+      prefixed("such node already entered"),
       L;
     false ->
-      common_io:prefixed("enter new node: ~w", [Node]),
+      prefixed("enter new node: ~w", [Node]),
       [Node | L]
   end.
 
 nodes_leave(Node, L) ->
   case lists:member(Node, L) of
     true ->
-      common_io:prefixed("leave node: ~w", [Node]),
+      prefixed("leave node: ~w", [Node]),
       lists:delete(Node, L);
     false ->
-      common_io:prefixed("cannot leave such node"),
+      prefixed("cannot leave such node"),
       L
   end.
 
@@ -57,7 +63,7 @@ nodes_RR(L) when is_list(L) ->
     {manage, _, leave, Node} -> nodes_leave(Node, L);
 
     {manage, Pid, terminate} ->
-      common_io:prefixed("terminate node manager: signaled by [~w]", [Pid]),
+      prefixed("terminate node manager: signaled by [~w]", [Pid]),
       exit(normal)
   end,
   nodes_RR(Next).

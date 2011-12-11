@@ -3,8 +3,7 @@ ERL=erl -boot start_clean
 
 RM=rm -rf
 
-MODS=common_io \
-	 ccc_manage \
+MODS=ccc_manage \
 	 node_manager \
 	 manage \
 	 distccd \
