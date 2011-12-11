@@ -21,11 +21,10 @@ hostname_validation() ->
   end.
 
 loop(Manager) when is_pid(Manager) ->
-  EXIT = 'EXIT',
   receive
-    {EXIT, Manager, Why} ->
+    {'EXIT', Manager, Why} ->
       common_io:prefixed("detect critical error: ~w", Why);
-    {EXIT, Pid, Why} ->
+    {'EXIT', Pid, Why} ->
       common_io:prefixed("process (~w) was terminated: ~w", [Pid, Why]),
       loop(Manager);
 

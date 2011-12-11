@@ -86,12 +86,10 @@ read_prefix() ->
 transfar_request(3, Sender, R = {Req, Len, Orig}) ->
   ok = if
     Req =:= "NFIL" ->
-      format_log("~s: ~w", [Req, Len]),
       Sender(Orig),
       format_log("done");
     Req =:= "CDIR"; Req =:= "NAME";
     Req =:= "FILE"; Req =:= "LINK" ->
-      format_log("~s: ~w", [Req, Len]),
       Data = io_read(Len),
       Sender(list_to_binary([Orig, Data])),
       format_log("done");
@@ -103,10 +101,10 @@ transfar_request(2, Sender, R) ->
   transfar_request(1, Sender, R);
 
 transfar_request(1, Sender, {Req, Len, Orig}) ->
-  Data = case Req of
-    "ARGC" -> [];
-    "ARGV" -> io_read(Len);
-    "DOTI" -> io_read(Len)
+  Data = if
+    Req =:= "ARGC" -> [];
+    Req =:= "ARGV";
+    Req =:= "DOTI" -> io_read(Len)
   end,
   ok = Sender(list_to_binary([Orig, Data])),
   format_log("done").

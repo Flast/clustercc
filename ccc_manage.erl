@@ -35,7 +35,7 @@ manage(To, Arg = [F | A]) when is_atom(F), is_list(A) ->
 
 stop() ->
   F = fun() ->
-    common_io:prefixed("send terminate signal"),
+    io:format("send terminate signal~n"),
     manage(clusterccd, [terminate])
     end,
   trap_exit_RAII(F).
