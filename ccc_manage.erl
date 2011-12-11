@@ -18,12 +18,6 @@ connect_impl(Type, Node) ->
 connect(Node) -> connect_impl(node, Node).
 connect(manage, Node) -> connect_impl(manage, Node).
 
-trap_exit_RAII(Function) ->
-  Prev = process_flag(trap_exit, true),
-  R    = Function(),
-  true = process_flag(trap_exit, Prev),
-  R.
-
 manage(To, Arg = [F | A]) when is_atom(F), is_list(A) ->
   Self = self(),
   M = list_to_tuple([manage, Self | Arg]),
@@ -34,11 +28,13 @@ manage(To, Arg = [F | A]) when is_atom(F), is_list(A) ->
   end.
 
 stop() ->
-  F = fun() ->
-    io:format("send terminate signal~n"),
-    manage(clusterccd, [terminate])
-    end,
-  trap_exit_RAII(F).
+  io:format("send terminate signal~n"),
+  case manage(clusterccd, [terminate]) of
+    true  ->
+      io:format("leave manage shell~n"),
+      init:stop();
+    false -> undefined
+  end.
 
 enter(Node) -> manage(nodes_pool, [enter, Node]).
 leave(Node) -> manage(nodes_pool, [leave, Node]).
