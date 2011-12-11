@@ -1,6 +1,25 @@
 % fake process
 -module(distccd).
 -export([main/1]).
+-import(string, [to_integer/1, substr/2, substr/3]).
+
+io_write(Data) ->
+  case file:write(group_leader(), Data) of
+    ok              -> ok;
+    {error, Reason} -> exit(file:format_error(Reason))
+  end.
+
+io_read(Number) ->
+  case file:read(group_leader(), Number) of
+    {ok, Data}      -> Data;
+    eof             -> exit(normal);
+    {error, Reason} -> exit(file:format_error(Reason))
+  end.
+
+format_log(Format) -> format_log(Format, []).
+format_log(Format, Datas) when is_list(Datas) ->
+  F = lists:concat([Format, "~n"]),
+  io:format(standard_error, F, Datas).
 
 main([User]) when is_atom(User) ->
   Args = init:get_plain_arguments(),
@@ -20,41 +39,90 @@ main([User]) when is_atom(User) ->
   end,
   {ok, Socket} = gen_tcp:connect(Node, 3632, [{active, false}]),
 
-  TX = spawn_link(
-    fun() -> redirecting(
-          fun()     -> io:get_chars([], 1) end,
-          %fun()     -> file:read(standard_io, 1) end,
-          fun(Data) -> gen_tcp:send(Socket, Data) end)
-    end),
-  RX = spawn_link(
-    fun() -> redirecting(
-          fun()     -> gen_tcp:recv(Socket, 0) end,
-          fun(Data) -> io:format("~s", [Data]) end)
-    end),
+  TX = spawn_link(fun() -> tx(Socket) end),
+  RX = spawn_link(fun() -> rx(Socket) end),
 
   erlang:yield(),
   loop(TX, RX),
-  gen_tcp:close(Socket).
+  gen_tcp:close(Socket),
+  format_log("normaly terminated").
 
 loop(undefined, undefined) -> undefined;
 loop(TX, RX) ->
   receive
-    {'EXIT', TX, {Reason, RS}} ->
-      io:format(standard_error, "TX: ~w(~s)~n", [Reason, RS]),
+    {'EXIT', TX, normal} -> loop(undefined, RX);
+    {'EXIT', TX, Why} ->
+      format_log("TX: ~w", [Why]),
       loop(undefined, RX);
-    {'EXIT', RX, {Reason, RS}} ->
-      io:format(standard_error, "RX: ~w(~s)~n", [Reason, RS]),
+
+    {'EXIT', RX, normal} -> loop(TX, undefined);
+    {'EXIT', RX, Why} ->
+      format_log("RX: ~w", [Why]),
       loop(TX, undefined);
+
     {'EXIT', Pid, Why} ->
-      io:format(standard_error, "unexpected process termination (~w): ~w~n", [Pid, Why]),
+      format_log("unexpected process termination (~w): ~w", [Pid, Why]),
       loop(TX, RX)
   end.
 
-redirecting(Receiver, Sender) ->
-  case Receiver() of
-    eof             -> exit({normal, "Success"});
-    {error, Reason} -> exit({Reason, file:format_error(Reason)});
-    {ok, Data}      -> ok = Sender(Data);
-    Data            -> ok = Sender(Data)
+rx(Socket) ->
+  case gen_tcp:recv(Socket, 0) of
+    {error, closed} -> exit(normal);
+    {error, Reason} -> exit(file:format_error(Reason));
+    {ok, Data}      -> ok = io_write(Data)
   end,
-  redirecting(Receiver, Sender).
+  rx(Socket).
+
+read_prefix() ->
+  LP = case io_read(12) of
+    P when is_binary(P) -> binary_to_list(P);
+    P when is_list(P)   -> P
+  end,
+  Req = substr(LP, 1, 4),
+  N = list_to_integer(substr(LP, 5), 16),
+  io:format(standard_error, "Req: ~s, Len: ~w, prefix: ~s -> ", [Req, N, LP]),
+  {Req, N, LP}.
+
+transfar_request(3, Sender, R = {Req, Len, Orig}) ->
+  ok = if
+    Req =:= "NFIL" ->
+      format_log("~s: ~w", [Req, Len]),
+      Sender(Orig),
+      format_log("done");
+    Req =:= "CDIR"; Req =:= "NAME";
+    Req =:= "FILE"; Req =:= "LINK" ->
+      format_log("~s: ~w", [Req, Len]),
+      Data = io_read(Len),
+      Sender(list_to_binary([Orig, Data])),
+      format_log("done");
+    true ->
+      transfar_request(2, Sender, R)
+  end;
+
+transfar_request(2, Sender, R) ->
+  transfar_request(1, Sender, R);
+
+transfar_request(1, Sender, {Req, Len, Orig}) ->
+  Data = case Req of
+    "ARGC" -> [];
+    "ARGV" -> io_read(Len);
+    "DOTI" -> io_read(Len)
+  end,
+  ok = Sender(list_to_binary([Orig, Data])),
+  format_log("done").
+
+tx_loop(Version, Sender) ->
+  Prefix = read_prefix(),
+  transfar_request(Version, Sender, Prefix),
+  tx_loop(Version, Sender).
+
+tx(Socket) ->
+  Sender = fun(Data) -> gen_tcp:send(Socket, Data) end,
+
+  case read_prefix() of
+    {"DIST", V, S} when V =:= 1; V =:= 2; V =:= 3 ->
+      ok = Sender(list_to_binary(S)),
+      format_log("distcc protocol version: ~w", [V])
+  end,
+
+  tx_loop(V, Sender).
