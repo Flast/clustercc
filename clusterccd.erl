@@ -35,7 +35,7 @@ loop(Manager) when is_pid(Manager) ->
       loop(Manager);
 
     {node, Pid, join} ->
-      prefixed("joining distcc node: ~w", [Pid]),
+      prefixed("joining clustercc node: ~w", [Pid]),
       loop(Manager);
 
     {manage, Pid, join} ->

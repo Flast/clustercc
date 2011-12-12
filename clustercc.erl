@@ -1,5 +1,5 @@
 % fake process
--module(distccd).
+-module(clustercc).
 -export([main/1]).
 -import(string, [to_integer/1, substr/2, substr/3]).
 
