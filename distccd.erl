@@ -83,30 +83,31 @@ read_prefix() ->
   end,
   N = list_to_integer(binary_to_list(BN), 16),
   io:format(standard_error, "Req: ~s, Len: ~w, prefix: ~s -> ", [Req, N, BP]),
-  {Req, N, BP}.
+  {BP, N}.
 
-transfar_request(3, Sender, R = {Req, Len, Orig}) ->
-  ok = if
-    Req =:= <<"NFIL">> ->
+transfar_request(3, Sender, R = {Orig, Len}) ->
+  ok = case Orig of
+    <<"NFIL", _/binary>> ->
       Sender(Orig),
       format_log("done");
-    Req =:= <<"CDIR">>; Req =:= <<"NAME">>;
-    Req =:= <<"FILE">>; Req =:= <<"LINK">> ->
+    <<Req:4/binary, _/binary>>
+    when Req =:= "CDIR"; Req =:= "NAME";
+         Req =:= "FILE"; Req =:= "LINK" ->
       Data = io_read(Len),
       Sender(list_to_binary([Orig, Data])),
       format_log("done");
-    true ->
-      transfar_request(2, Sender, R)
+    _ -> transfar_request(2, Sender, R)
   end;
 
 transfar_request(2, Sender, R) ->
   transfar_request(1, Sender, R);
 
-transfar_request(1, Sender, {Req, Len, Orig}) ->
-  Data = if
-    Req =:= <<"ARGC">> -> <<>>;
-    Req =:= <<"ARGV">>;
-    Req =:= <<"DOTI">> -> io_read(Len)
+transfar_request(1, Sender, {Orig, Len}) ->
+  Data = case Orig of
+    <<"ARGC", _/binary>> -> <<>>;
+    <<Req:4/binary, _/binary>>
+    when Req =:= "ARGV";
+         Req =:= "DOTI" -> io_read(Len)
   end,
   ok = Sender(list_to_binary([Orig, Data])),
   format_log("done").
@@ -120,7 +121,7 @@ tx(Socket) ->
   Sender = fun(Data) -> gen_tcp:send(Socket, Data) end,
 
   case read_prefix() of
-    {<<"DIST">>, V, S} when V =:= 1; V =:= 2; V =:= 3 ->
+    {S= <<"DIST", _/binary>>, V} when V =:= 1; V =:= 2; V =:= 3 ->
       ok = Sender(S),
       format_log("distcc protocol version: ~w", [V])
   end,
