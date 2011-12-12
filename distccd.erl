@@ -3,7 +3,9 @@
 -export([main/1]).
 -import(string, [to_integer/1, substr/2, substr/3]).
 
-io_write(Data) ->
+io_write(Data) when is_list(Data) ->
+  io_write(list_to_binary(Data));
+io_write(Data) when is_binary(Data) ->
   case file:write(group_leader(), Data) of
     ok              -> ok;
     {error, Reason} -> exit(file:format_error(Reason))
@@ -11,9 +13,10 @@ io_write(Data) ->
 
 io_read(Number) ->
   case file:read(group_leader(), Number) of
-    {ok, Data}      -> Data;
-    eof             -> exit(normal);
-    {error, Reason} -> exit(file:format_error(Reason))
+    {ok, Data} when is_list(Data)   -> list_to_binary(Data);
+    {ok, Data} when is_binary(Data) -> Data;
+    eof                             -> exit(normal);
+    {error, Reason}                 -> exit(file:format_error(Reason))
   end.
 
 format_log(Format) -> format_log(Format, []).
@@ -74,22 +77,21 @@ rx(Socket) ->
   rx(Socket).
 
 read_prefix() ->
-  LP = case io_read(12) of
-    P when is_binary(P) -> binary_to_list(P);
-    P when is_list(P)   -> P
+  <<Req:4/binary, BN/binary>> = BP = case io_read(12) of
+    P when is_binary(P) -> P;
+    P when is_list(P)   -> list_to_binary(P)
   end,
-  Req = substr(LP, 1, 4),
-  N = list_to_integer(substr(LP, 5), 16),
-  io:format(standard_error, "Req: ~s, Len: ~w, prefix: ~s -> ", [Req, N, LP]),
-  {Req, N, LP}.
+  N = list_to_integer(binary_to_list(BN), 16),
+  io:format(standard_error, "Req: ~s, Len: ~w, prefix: ~s -> ", [Req, N, BP]),
+  {Req, N, BP}.
 
 transfar_request(3, Sender, R = {Req, Len, Orig}) ->
   ok = if
-    Req =:= "NFIL" ->
+    Req =:= <<"NFIL">> ->
       Sender(Orig),
       format_log("done");
-    Req =:= "CDIR"; Req =:= "NAME";
-    Req =:= "FILE"; Req =:= "LINK" ->
+    Req =:= <<"CDIR">>; Req =:= <<"NAME">>;
+    Req =:= <<"FILE">>; Req =:= <<"LINK">> ->
       Data = io_read(Len),
       Sender(list_to_binary([Orig, Data])),
       format_log("done");
@@ -102,9 +104,9 @@ transfar_request(2, Sender, R) ->
 
 transfar_request(1, Sender, {Req, Len, Orig}) ->
   Data = if
-    Req =:= "ARGC" -> [];
-    Req =:= "ARGV";
-    Req =:= "DOTI" -> io_read(Len)
+    Req =:= <<"ARGC">> -> <<>>;
+    Req =:= <<"ARGV">>;
+    Req =:= <<"DOTI">> -> io_read(Len)
   end,
   ok = Sender(list_to_binary([Orig, Data])),
   format_log("done").
@@ -118,7 +120,7 @@ tx(Socket) ->
   Sender = fun(Data) -> gen_tcp:send(Socket, Data) end,
 
   case read_prefix() of
-    {"DIST", V, S} when V =:= 1; V =:= 2; V =:= 3 ->
+    {<<"DIST">>, V, S} when V =:= 1; V =:= 2; V =:= 3 ->
       ok = Sender(list_to_binary(S)),
       format_log("distcc protocol version: ~w", [V])
   end,
