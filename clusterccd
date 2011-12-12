@@ -1,2 +1,2 @@
 #!/bin/sh
-erl -noshell -sname daemon@localhost -setcookie clustercc -s clusterccd main -s init stop -extra "$@"
+erl -smp -noshell -sname daemon@localhost -setcookie clustercc -s clusterccd main -s init stop -extra "$@"
