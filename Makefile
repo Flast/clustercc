@@ -2,18 +2,23 @@ ERLC=erlc -W
 ERL=erl -boot start_clean
 
 RM=rm -rf
+DIALYZER=dialyzer
 
 MODS=ccc_manage \
 	 node_manager \
 	 manage \
 	 distccd \
 	 clusterccd
+ERLS=$(MODS:%=%.erl)
 BEAMS=$(MODS:%=%.beam)
 
-.PHONY: all compile clean
+.PHONY: all compile static-check clean
 all: compile
 
 compile: $(BEAMS)
+
+static-check: $(ERLS)
+	@$(DIALYZER) $(ERLS)
 
 clean:
 	@echo "  RM    $(BEAMS)"
