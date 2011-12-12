@@ -48,7 +48,7 @@ main([User]) when is_atom(User) ->
   erlang:yield(),
   loop(TX, RX),
   gen_tcp:close(Socket),
-  format_log("normaly terminated").
+  format_log("terminated").
 
 loop(undefined, undefined) -> undefined;
 loop(TX, RX) ->
@@ -121,7 +121,7 @@ tx(Socket) ->
 
   case read_prefix() of
     {<<"DIST">>, V, S} when V =:= 1; V =:= 2; V =:= 3 ->
-      ok = Sender(list_to_binary(S)),
+      ok = Sender(S),
       format_log("distcc protocol version: ~w", [V])
   end,
 
