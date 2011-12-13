@@ -15,8 +15,21 @@ main() ->
 
   prefixed("node name as ~s", [node()]),
 
+  ok     = start_application(),
+  Daemon = start_ssh_daemon(any, 22),
+
   Manager = node_manager:new_link([]),
+  register(nodes_pool, Manager),
   loop(Manager),
+
+  signal_terminate(Daemon),
+
+  prefixed("joining all sessions ..."),
+  join_all_processes(Manager, []),
+
+  % Stop all applications after all connected sessions are finished.
+  application:stop(ssh),
+  application:stop(crypto),
 
   prefixed("terminate").
 
@@ -26,6 +39,34 @@ hostname_validation() ->
     _             -> true
   end.
 
+start_application() ->
+  Format = "~s application start failed with reason: ~w",
+
+  StartApplication = fun(Name) when is_atom(Name) ->
+      case application:start(Name) of
+        ok              -> ok;
+        {error, Reason} ->
+          prefixed(Format, [atom_to_list(Name), Reason]),
+          {error, Reason}
+      end
+  end,
+
+  ok = StartApplication(crypto),
+  StartApplication(ssh).
+
+start_ssh_daemon(Addr, Port)
+when is_integer(Port), 0 =< Port, Port < 65536 ->
+  Options = [
+  ],
+  {ok, Daemon} = ssh:daemon(Addr, Port, Options),
+  Daemon.
+
+signal_terminate(Daemon) ->
+  ssh:stop_daemon(Daemon),
+  % Send terminate signal
+  nodes_pool ! {manage, self(), terminate},
+  ok.
+
 loop(Manager) when is_pid(Manager) ->
   receive
     {'EXIT', Manager, Why} ->
@@ -34,14 +75,26 @@ loop(Manager) when is_pid(Manager) ->
       prefixed("process (~w) was terminated: ~w", [Pid, Why]),
       loop(Manager);
 
-    {node, Pid, join} ->
-      prefixed("joining clustercc node: ~w", [Pid]),
-      loop(Manager);
-
     {manage, Pid, join} ->
       prefixed("joining management process: ~w", [Pid]),
       loop(Manager);
     {manage, Pid, terminate} ->
-      prefixed("receive terminate signal from [~w]", [Pid]),
-      Manager ! {manage, Pid, terminate}
+      prefixed("receive terminate signal from [~w]", [Pid])
+  end.
+
+join_all_processes(Manager, []) ->
+  receive
+    {'EXIT', Manager, Why} ->
+      Prefix = "joining clustercc node manager",
+      case Why of
+        normal -> prefixed("~s: ~w", [Prefix, Manager]);
+        _      -> prefixed("~s(~w) with critical error: ~w", [Prefix, Manager, Why])
+      end,
+      terminated
+  end;
+join_all_processes(Manager, [Node | Ntail]) ->
+  receive
+    {'EXIT', Node, Why} ->
+      prefixed("joining node(~w) with status: ~w", [Node, Why]),
+      join_all_processes(Manager, Ntail)
   end.

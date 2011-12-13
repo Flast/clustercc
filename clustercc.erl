@@ -118,7 +118,7 @@ tx(Socket) ->
   Sender = fun(Data) -> gen_tcp:send(Socket, Data) end,
 
   case read_prefix() of
-    {S= <<"DIST", _/binary>>, V} when V == 1; V == 2; V == 3 ->
+    {S = <<"DIST", _/binary>>, V} when V == 1; V == 2; V == 3 ->
       ok = Sender(S),
       format_log("distcc protocol version: ~w", [V])
   end,
