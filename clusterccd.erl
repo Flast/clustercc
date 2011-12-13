@@ -56,7 +56,13 @@ start_application() ->
 
 start_ssh_daemon(Addr, Port)
 when is_integer(Port), 0 =< Port, Port < 65536 ->
+  Shell = fun(User) ->
+      io:format("Hi ~s! You've successfully authenticated.~n", [User]),
+      io:format("  This server does not provide shell access and close this session.~n~n")
+  end,
+
   Options = [
+    {shell, fun(User) -> spawn(fun() -> Shell(User) end) end}
   ],
   {ok, Daemon} = ssh:daemon(Addr, Port, Options),
   Daemon.
