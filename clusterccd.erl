@@ -24,6 +24,12 @@ workers_delete() ->
 workers_join(Pid) when is_pid(Pid) ->
   ok = pg2:join(workers, Pid).
 
+workers_members() ->
+  case pg2:get_memenbers(workers) of
+    {error, {no_such_group, workers}} -> [];
+    Pids                              -> Pids
+  end.
+
 main() ->
   true = hostname_validation(),
   prefixed("start server"),
@@ -44,7 +50,7 @@ main() ->
   signal_terminate(Daemon),
 
   prefixed("joining all sessions ..."),
-  join_all_processes(Manager, []),
+  join_all_processes(Manager, workers_members()),
 
   % Stop all applications after all connected sessions are finished.
   ssh:stop_daemon(Daemon),
