@@ -25,7 +25,7 @@ workers_join(Pid) when is_pid(Pid) ->
   ok = pg2:join(workers, Pid).
 
 workers_members() ->
-  case pg2:get_memenbers(workers) of
+  case pg2:get_members(workers) of
     {error, {no_such_group, workers}} -> [];
     Pids                              -> Pids
   end.
@@ -34,9 +34,9 @@ main() ->
   true = hostname_validation(),
   prefixed("start server"),
   process_flag(trap_exit, true),
-  ok  = register(clusterccd, self()),
-  yes = global:register_name(clusterccd, self()),
-  ok  = workers_create(),
+  true = register(clusterccd, self()),
+  yes  = global:register_name(clusterccd, self()),
+  ok   = workers_create(),
 
   prefixed("node name as ~s", [node()]),
 
@@ -97,7 +97,7 @@ when is_integer(Port), 0 =< Port, Port < 65536 ->
   Daemon.
 
 signal_terminate(Daemon) ->
-  ssh:stop_listen(Daemon),
+  ssh:stop_listener(Daemon),
   % Send terminate signal
   nodes_pool ! {manage, self(), terminate},
   ok.
