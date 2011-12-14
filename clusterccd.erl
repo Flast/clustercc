@@ -1,5 +1,13 @@
 -module(clusterccd).
+
+%% clustercc daemon
 -export([main/0]).
+
+%% SSH cli callback implementations
+-export([init/1, terminate/2, handle_ssh_msg/2, handle_msg/2]).
+
+
+%% clustercc daemon
 
 prefixed(Format) -> prefixed(Format, []).
 prefixed(Format, Data) when length(Format) /= 0 ->
@@ -11,6 +19,7 @@ main() ->
   true = hostname_validation(),
   prefixed("start server"),
   process_flag(trap_exit, true),
+  ok  = register(clusterccd, self()),
   yes = global:register_name(clusterccd, self()),
 
   prefixed("node name as ~s", [node()]),
@@ -28,6 +37,7 @@ main() ->
   join_all_processes(Manager, []),
 
   % Stop all applications after all connected sessions are finished.
+  ssh:stop_daemon(Daemon),
   application:stop(ssh),
   application:stop(crypto),
 
@@ -61,14 +71,16 @@ when is_integer(Port), 0 =< Port, Port < 65536 ->
       io:format("  This server does not provide shell access and close this session.~n~n")
   end,
 
-  Options = [
-    {shell, fun(User) -> spawn(fun() -> Shell(User) end) end}
+  Options =
+  [
+    {shell, fun(User) -> spawn(fun() -> Shell(User) end) end},
+    {ssh_cli, {clusterccd, []}}
   ],
   {ok, Daemon} = ssh:daemon(Addr, Port, Options),
   Daemon.
 
 signal_terminate(Daemon) ->
-  ssh:stop_daemon(Daemon),
+  ssh:stop_listen(Daemon),
   % Send terminate signal
   nodes_pool ! {manage, self(), terminate},
   ok.
@@ -104,3 +116,24 @@ join_all_processes(Manager, [Node | Ntail]) ->
       prefixed("joining node(~w) with status: ~w", [Node, Why]),
       join_all_processes(Manager, Ntail)
   end.
+
+%% SSH cli callback implementations
+
+init(_) -> {ok, []}.
+
+terminate(_, _) -> nothing_to_do.
+
+% do nothing
+handle_msg(_, State) when is_list(State) ->
+  {ok, State}.
+
+handle_ssh_msg({ssh_cm, _Ref, Msg}, State) when is_list(State) ->
+  case Msg of
+    {exec, _, true, _Cmd} ->
+      undefined;
+    {data, _, _, Data} when is_binary(Data) ->
+      undefined;
+
+    _ -> io:format(standard_error, "~w~n", [Msg])
+  end,
+  {ok, State}.
