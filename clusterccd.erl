@@ -15,12 +15,22 @@ prefixed(Format, Data) when length(Format) /= 0 ->
   D = [self() | Data],
   io:format(F, D).
 
+workers_create() ->
+  ok = pg2:create(workers).
+
+workers_delete() ->
+  ok = pg2:delete(workers).
+
+workers_join(Pid) when is_pid(Pid) ->
+  ok = pg2:join(workers, Pid).
+
 main() ->
   true = hostname_validation(),
   prefixed("start server"),
   process_flag(trap_exit, true),
   ok  = register(clusterccd, self()),
   yes = global:register_name(clusterccd, self()),
+  ok  = workers_create(),
 
   prefixed("node name as ~s", [node()]),
 
@@ -41,6 +51,7 @@ main() ->
   application:stop(ssh),
   application:stop(crypto),
 
+  ok = workers_delete(),
   prefixed("terminate").
 
 hostname_validation() ->
@@ -97,8 +108,19 @@ loop(Manager) when is_pid(Manager) ->
       prefixed("joining management process: ~w", [Pid]),
       loop(Manager);
     {manage, Pid, terminate} ->
-      prefixed("receive terminate signal from [~w]", [Pid])
+      prefixed("receive terminate signal from [~w]", [Pid]);
+
+    {node, Pid, spawn} ->
+      Node = node_manager:get(),
+      prefixed("spawn new node, allocated with [~w]", [Node]),
+      NPid = new_clustercc_node(Node),
+      Pid ! {node, self(), alloc, NPid}
   end.
+
+new_clustercc_node(Node) ->
+  Pid = spawn_link(fun() -> clustercc_main(Node) end),
+  ok  = workers_join(Pid),
+  Pid.
 
 join_all_processes(Manager, []) ->
   receive
@@ -119,7 +141,10 @@ join_all_processes(Manager, [Node | Ntail]) ->
 
 %% SSH cli callback implementations
 
-init(_) -> {ok, []}.
+init(_) ->
+  clusterccd ! {node, self(), spawn},
+  receive {node, _, alloc, Pid} -> Pid end,
+  {ok, [{node, Pid}]}.
 
 terminate(_, _) -> nothing_to_do.
 
@@ -137,3 +162,7 @@ handle_ssh_msg({ssh_cm, _Ref, Msg}, State) when is_list(State) ->
     _ -> io:format(standard_error, "~w~n", [Msg])
   end,
   {ok, State}.
+
+%% clustercc
+
+clustercc_main(_Node) -> nothing_to_do.
