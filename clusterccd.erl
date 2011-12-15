@@ -84,17 +84,7 @@ start_application() ->
 
 start_ssh_daemon(Addr, Port)
 when is_integer(Port), 0 =< Port, Port < 65536 ->
-  Shell = fun(User) ->
-      io:format("Hi ~s! You've successfully authenticated.~n", [User]),
-      io:format("  This server does not provide shell access and close this session.~n~n")
-  end,
-
-  Options =
-  [
-    {shell, fun(User) -> spawn(fun() -> Shell(User) end) end},
-    {ssh_cli, {clusterccd, []}}
-  ],
-  {ok, Daemon} = ssh:daemon(Addr, Port, Options),
+  {ok, Daemon} = ssh:daemon(Addr, Port, [{ssh_cli, {clusterccd, []}}]),
   Daemon.
 
 signal_terminate(Daemon) ->
@@ -160,16 +150,37 @@ terminate(Reason, State) ->
 % do nothing
 handle_msg(_, State) -> {ok, State}.
 
-handle_ssh_msg({ssh_cm, _Ref, Msg}, State) ->
+handle_ssh_msg({ssh_cm, Ref, Msg}, State) ->
   case Msg of
-    {exec, _, true, _Cmd} ->
-      undefined;
-    {data, _, _, Data} when is_binary(Data) ->
-      undefined;
+    {closed, ID}   -> {stop, ID, State};
+    {shell, ID, _} ->
+      Send = fun(M) when is_list(M) ->
+          BM = list_to_binary(M),
+          ssh_connection:send(Ref, ID, BM)
+      end,
+      Send("You've successfully authenticated.\r\n"),
+      Send("  This server does not provide shell access, and close this session.\r\n\r\n"),
+      {stop, ID, State};
 
-    _ -> io:format(standard_error, "~w~n", [Msg])
-  end,
-  {ok, State}.
+    {env, _, _, Var, Value} ->
+      io:format("env: ~s: ~s~n", [binary_to_list(Var), binary_to_list(Value)]),
+      {ok, State};
+
+    {exec, _, true, _Cmd} ->
+      {ok, State};
+    {data, _, _, Data} when is_binary(Data) ->
+      Transfar = dict:fetch(transfar, State),
+      ok = Transfar(Data),
+      {ok, State};
+
+    % don't care following msg
+    {pty, _, _, _}                -> {ok, State};
+    {window_chage, _, _, _, _, _} -> {ok, State};
+
+    _ ->
+      prefixed("unhandled ssh message: ~w~n", [Msg]),
+      {ok, State}
+  end.
 
 %% clustercc
 
