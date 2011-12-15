@@ -118,17 +118,12 @@ loop(Manager) when is_pid(Manager) ->
       prefixed("receive terminate signal from [~w]", [Pid]);
 
     {node, Pid, spawn} ->
-      Node = node_manager:get(),
-      prefixed("spawn new node, allocated with [~w]", [Node]),
-      NPid = new_clustercc_node(Node),
-      Pid ! {node, self(), alloc, NPid}
+      NPid = spawn_link(fun() -> clustercc_main() end),
+      ok   = workers_join(Pid),
+      prefixed("spawn new node: ~w", [NPid]),
+      Pid ! {node, self(), alloc, NPid},
       loop(Manager)
   end.
-
-new_clustercc_node(Node) ->
-  Pid = spawn_link(fun() -> clustercc_main(Node) end),
-  ok  = workers_join(Pid),
-  Pid.
 
 join_all_processes(Manager, []) ->
   receive
@@ -173,4 +168,4 @@ handle_ssh_msg({ssh_cm, _Ref, Msg}, State) when is_list(State) ->
 
 %% clustercc
 
-clustercc_main(_Node) -> nothing_to_do.
+clustercc_main() -> nothing_to_do.
