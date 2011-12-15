@@ -51,6 +51,7 @@ main() ->
 
   prefixed("joining all sessions ..."),
   join_all_processes(Manager, workers_members()),
+  prefixed("joined"),
 
   % Stop all applications after all connected sessions are finished.
   ssh:stop_daemon(Daemon),
@@ -121,6 +122,7 @@ loop(Manager) when is_pid(Manager) ->
       prefixed("spawn new node, allocated with [~w]", [Node]),
       NPid = new_clustercc_node(Node),
       Pid ! {node, self(), alloc, NPid}
+      loop(Manager)
   end.
 
 new_clustercc_node(Node) ->
