@@ -146,16 +146,21 @@ join_all_processes(Manager, [Node | Ntail]) ->
 
 init(_) ->
   clusterccd ! {node, self(), spawn},
-  receive {node, _, alloc, Pid} -> Pid end,
-  {ok, [{node, Pid}]}.
+  receive
+    {node, _, alloc, Pid} ->
+      Node = dict:store(node, Pid, dict:new()),
+      {ok, Node}
+  end.
 
-terminate(_, _) -> nothing_to_do.
+terminate(Reason, State) ->
+  Node = dict:fetch(node, State),
+  exit(Node, Reason),
+  prefixed("terminate ssh session with [~w]", [Reason]).
 
 % do nothing
-handle_msg(_, State) when is_list(State) ->
-  {ok, State}.
+handle_msg(_, State) -> {ok, State}.
 
-handle_ssh_msg({ssh_cm, _Ref, Msg}, State) when is_list(State) ->
+handle_ssh_msg({ssh_cm, _Ref, Msg}, State) ->
   case Msg of
     {exec, _, true, _Cmd} ->
       undefined;
