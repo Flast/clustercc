@@ -6,8 +6,8 @@ DIALYZER=dialyzer
 
 MODS=ccc_manage \
 	 node_manager \
+	 worker \
 	 manage \
-	 clustercc \
 	 clusterccd
 ERLS=$(MODS:%=%.erl)
 BEAMS=$(MODS:%=%.beam)
