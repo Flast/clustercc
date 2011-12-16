@@ -1,6 +1,7 @@
 -module(worker).
 -export([init/1, terminate/2, handle_ssh_msg/2, handle_msg/2]).
 
+prefixed(Format) -> prefixed(Format, []).
 prefixed(Format, Data) when length(Format) /= 0 ->
   F = lists:concat(["worker[~w]: ", Format, "~n"]),
   D = [self() | Data],
@@ -60,11 +61,19 @@ handle_ssh_msg({ssh_cm, Ref, Msg}, State) ->
 
 clustercc_main() ->
   {clustercc, Ref, ID} = receive V -> V end,
+  R  = (catch clustercc_main(Ref, ID, node_manager:get())),
+  ok = ssh_connection:close(Ref, ID),
+  case R of
+    no_entry -> prefixed("no worker node");
+    closed   -> undefined;
 
-  Node = case node_manager:get() of
-    undefined -> throw(enoent);
-    N         -> N
-  end,
+    {'EXIT', {Reason, _}} -> error(Reason);
+    {'EXIT', Reason}      -> exit(Reason);
+    T                     -> throw(T)
+  end.
+
+clustercc_main(_, _, undefined) -> no_entry;
+clustercc_main(Ref, ID, Node)   ->
   {ok, Socket} = gen_tcp:connect(Node, 3632, []),
 
   TX = fun(Data) ->
@@ -79,17 +88,12 @@ clustercc_main() ->
 
   loop(TX, RX),
 
-  ok = ssh_connection:close(Ref, ID),
   gen_tcp:close(Socket).
 
 loop(TX, RX) ->
   receive
-    {tcp, _, Data} ->
-      ok = RX(Data),
-      loop(TX, RX);
-    {ssh, _, _, Data} ->
-      ok = TX(Data),
-      loop(TX, RX);
+    {tcp, _, Data}    -> RX(Data), loop(TX, RX);
+    {ssh, _, _, Data} -> TX(Data), loop(TX, RX);
 
     {tcp_closed, _} -> closed;
     {ssh_closed, _} -> closed;
