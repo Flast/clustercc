@@ -144,9 +144,13 @@ init(_) ->
 
 terminate(Reason, State) ->
   Node = dict:fetch(node, State),
-  exit(Node, Reason),
+  Node ! {ssh_closed, Reason},
   prefixed("terminate ssh session with [~w]", [Reason]).
 
+handle_msg({ssh_channel_up, ID, Ref}, State) ->
+  Node = dict:fetch(node, State),
+  Node ! {clustercc, Ref, ID},
+  {ok, State};
 % do nothing
 handle_msg(_, State) -> {ok, State}.
 
@@ -168,9 +172,9 @@ handle_ssh_msg({ssh_cm, Ref, Msg}, State) ->
 
     {exec, _, true, _Cmd} ->
       {ok, State};
-    {data, _, _, Data} when is_binary(Data) ->
-      Transfar = dict:fetch(transfar, State),
-      ok = Transfar(Data),
+    {data, ID, _, Data} when is_binary(Data) ->
+      Node = dict:fetch(node, State),
+      Node ! {ssh, Ref, ID, Data},
       {ok, State};
 
     % don't care following msg
@@ -184,4 +188,41 @@ handle_ssh_msg({ssh_cm, Ref, Msg}, State) ->
 
 %% clustercc
 
-clustercc_main() -> nothing_to_do.
+clustercc_main() ->
+  {clustercc, Ref, ID} = receive V -> V end,
+
+  Node = case node_manager:get() of
+    undefined -> throw(enoent);
+    N         -> N
+  end,
+  {ok, Socket} = gen_tcp:connect(Node, 3632, []),
+
+  TX = fun(Data) ->
+      gen_tcp:send(Socket, Data)
+  end,
+  RX = fun
+    (Data) when is_binary(Data) ->
+      ssh_connection:send(Ref, ID, Data);
+    (Data) when is_list(Data) ->
+      ssh_connection:send(Ref, ID, list_to_binary(Data))
+  end,
+
+  loop(TX, RX),
+
+  ok = ssh_connection:close(Ref, ID),
+  gen_tcp:close(Socket).
+
+loop(TX, RX) ->
+  receive
+    {tcp, _, Data} ->
+      ok = RX(Data),
+      loop(TX, RX);
+    {ssh, _, _, Data} ->
+      ok = TX(Data),
+      loop(TX, RX);
+
+    {tcp_closed, _} -> closed;
+    {ssh_closed, _} -> closed;
+
+    {tcp_error, _, _} -> closed
+  end.
