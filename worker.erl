@@ -38,11 +38,22 @@ handle_ssh_msg({ssh_cm, Ref, Msg}, State) ->
       {stop, ID, State};
 
     {env, _, _, Var, Value} ->
-      io:format("env: ~s: ~s~n", [binary_to_list(Var), binary_to_list(Value)]),
+      prefixed("env => ~s = ~s", [binary_to_list(Var), binary_to_list(Value)]),
       {ok, State};
 
-    {exec, _, true, _Cmd} ->
-      {ok, State};
+    {exec, ID, true, Cmd} ->
+      Node = dict:fetch(node, State),
+      WorkCmd = case string:tokens(Cmd, " \t") of
+        ["distccd", "--inetd"] -> exec;
+        _ ->
+          prefixed("warning: unexpected commands [~s]", [Cmd]),
+          close
+      end,
+      Node ! {clustercc, WorkCmd},
+      case WorkCmd of
+        exec  -> {ok, State};
+        close -> {stop, ID, State}
+      end;
     {data, ID, _, Data} when is_binary(Data) ->
       Node = dict:fetch(node, State),
       Node ! {ssh, Ref, ID, Data},
@@ -60,7 +71,8 @@ handle_ssh_msg({ssh_cm, Ref, Msg}, State) ->
 %% clustercc
 
 clustercc_main() ->
-  {clustercc, Ref, ID} = receive V -> V end,
+  {clustercc, Ref, ID} = receive V1 -> V1 end,
+  {clustercc, exec}    = receive V2 -> V2 end,
   R  = (catch clustercc_main(Ref, ID, node_manager:get())),
   ok = ssh_connection:close(Ref, ID),
   case R of
