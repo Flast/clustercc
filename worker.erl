@@ -77,7 +77,7 @@ clustercc_main() ->
   ok = ssh_connection:close(Ref, ID),
   case R of
     no_entry -> prefixed("no worker node");
-    closed   -> undefined;
+    ok       -> undefined;
 
     {'EXIT', {Reason, _}} -> error(Reason);
     {'EXIT', Reason}      -> exit(Reason);
@@ -98,7 +98,8 @@ clustercc_main(Ref, ID, Node)   ->
       ssh_connection:send(Ref, ID, list_to_binary(Data))
   end,
 
-  loop(TX, RX),
+  prefixed("distribute to ~w", [Node]),
+  closed = loop(TX, RX),
 
   gen_tcp:close(Socket).
 
