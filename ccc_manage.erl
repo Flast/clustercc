@@ -8,7 +8,7 @@ connect_impl(Type, Node) ->
   Pids = [global:whereis_name(Reg) || Reg <- Regs],
   true = not lists:member(undefined, Pids),
 
-  M    = {Type, self(), join},
+  M = {Type, self(), join},
   try global:send(clusterccd, M) of
     _ -> true
   catch
@@ -18,13 +18,13 @@ connect_impl(Type, Node) ->
 connect(Node) -> connect_impl(node, Node).
 connect(manage, Node) -> connect_impl(manage, Node).
 
-manage(To, Arg = [F | A]) when is_atom(F), is_list(A) ->
+manage(To, Arg = [F | _]) when is_atom(F) ->
   Self = self(),
   M = list_to_tuple([manage, Self | Arg]),
   try global:send(To, M) of
     _ -> true
   catch
-    exit:{badarg, {To, M}} -> false
+    exit:{badarg, {To, M}} -> {error, badarg}
   end.
 
 stop() ->
@@ -33,8 +33,8 @@ stop() ->
     true  ->
       io:format("leave manage shell~n"),
       init:stop();
-    false -> undefined
+    Error -> Error
   end.
 
-enter(Node) -> manage(nodes_pool, [enter, Node]).
-leave(Node) -> manage(nodes_pool, [leave, Node]).
+enter(Nodes) when is_list(Nodes) -> manage(nodes_pool, [enter, Nodes]).
+leave(Nodes) when is_list(Nodes) -> manage(nodes_pool, [leave, Nodes]).
